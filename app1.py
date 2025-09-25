@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from deepface import DeepFace
 from io import BytesIO
 from PIL import Image
@@ -16,8 +17,18 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 app = FastAPI(title="Fast Face Attendance API")
 
+# Enable CORS for your frontend
+origins = ["*"]  # Replace "*" with your frontend URL in production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ---------------- Face Database ----------------
-DB_FILE = os.path.join(os.path.dirname(__file__), "face_fast_db.pkl")  # absolute path inside backend
+DB_FILE = os.path.join(os.path.dirname(__file__), "face_fast_db.pkl")
 
 try:
     with open(DB_FILE, "rb") as f:
@@ -82,5 +93,5 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
 # ---------------- Run Server ----------------
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))  # Use Render port if deployed
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("backend.app1:app", host="0.0.0.0", port=port)
