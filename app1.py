@@ -1,4 +1,3 @@
-# backend/app1.py
 import pickle
 import numpy as np
 from fastapi import FastAPI, UploadFile, Form
@@ -17,8 +16,8 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 app = FastAPI(title="Fast Face Attendance API")
 
-# Enable CORS for your frontend
-origins = ["*"]  # Replace "*" with your frontend URL in production
+# Enable CORS for your frontend project
+origins = ["https://YOUR_FRONTEND_URL"]  # replace with your frontend Render URL
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -28,7 +27,7 @@ app.add_middleware(
 )
 
 # ---------------- Face Database ----------------
-DB_FILE = os.path.join(os.path.dirname(__file__), "face_fast_db.pkl")
+DB_FILE = "face_fast_db.pkl"
 
 try:
     with open(DB_FILE, "rb") as f:
@@ -68,14 +67,18 @@ def recognize_face_bytes(image_bytes):
             min_dist = dist
             identity = reg
 
-    threshold = 10  # tweak if needed
+    threshold = 10
     similarity = 1 / (1 + min_dist)
     if min_dist > threshold:
         identity = "Unknown"
 
     return identity, similarity
 
-# ---------------- API Endpoint ----------------
+# ---------------- API Endpoints ----------------
+@app.get("/")
+async def root():
+    return {"message": "Face Attendance API is running"}
+
 @app.post("/verify-attendance")
 async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = None):
     if not file:
@@ -94,4 +97,4 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("backend.app1:app", host="0.0.0.0", port=port)
+    uvicorn.run("app1:app", host="0.0.0.0", port=port)
