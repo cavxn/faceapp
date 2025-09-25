@@ -2,7 +2,8 @@
 import pickle
 import numpy as np
 from fastapi import FastAPI, UploadFile, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from deepface import DeepFace
 from io import BytesIO
 from PIL import Image
@@ -16,9 +17,13 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 app = FastAPI(title="Fast Face Attendance API")
 
+# ---------------- Static Files ----------------
+# Serve frontend folder (index.html, js, css)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ---------------- Face DB ----------------
 DB_FILE = "face_fast_db.pkl"
 
-# Load face database
 try:
     with open(DB_FILE, "rb") as f:
         face_db = pickle.load(f)
@@ -27,7 +32,7 @@ except FileNotFoundError:
     face_db = {}
     print("[!] Face database not found. Create 'face_fast_db.pkl' first.")
 
-# Preload Facenet model
+# ---------------- Load Model ----------------
 print("[*] Loading Facenet model...")
 model = DeepFace.build_model("Facenet")
 print("[*] Facenet model loaded.")
@@ -56,7 +61,6 @@ def recognize_face_bytes(image_bytes):
             min_dist = dist
             identity = reg
 
-    # Typical Facenet threshold for recognition
     threshold = 10  # tweak if needed
     similarity = 1 / (1 + min_dist)
     if min_dist > threshold:
@@ -64,7 +68,12 @@ def recognize_face_bytes(image_bytes):
 
     return identity, similarity
 
-# ---------------- API Endpoint ----------------
+# ---------------- API Endpoints ----------------
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    # Serve index.html from static folder
+    return FileResponse("static/index.html")
+
 @app.post("/verify-attendance")
 async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = None):
     if not file:
@@ -78,8 +87,3 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
         return JSONResponse({"message": f"✅ Attendance marked for {registerNumber} (Similarity: {similarity_percent}%)"})
     else:
         return JSONResponse({"message": f"❌ Face does not match register number (Similarity: {similarity_percent}%)"})
-
-# ---------------- Run Server ----------------
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app1:app", host="127.0.0.1", port=8000, reload=True)
