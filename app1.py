@@ -1,9 +1,8 @@
-# app1.py
+# backend/app1.py
 import pickle
 import numpy as np
 from fastapi import FastAPI, UploadFile, Form
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from deepface import DeepFace
 from io import BytesIO
 from PIL import Image
@@ -17,12 +16,8 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 app = FastAPI(title="Fast Face Attendance API")
 
-# ---------------- Static Files ----------------
-# Serve frontend folder (index.html, js, css)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# ---------------- Face DB ----------------
-DB_FILE = "face_fast_db.pkl"
+# ---------------- Face Database ----------------
+DB_FILE = os.path.join(os.path.dirname(__file__), "face_fast_db.pkl")  # absolute path inside backend
 
 try:
     with open(DB_FILE, "rb") as f:
@@ -32,7 +27,7 @@ except FileNotFoundError:
     face_db = {}
     print("[!] Face database not found. Create 'face_fast_db.pkl' first.")
 
-# ---------------- Load Model ----------------
+# ---------------- Load Facenet ----------------
 print("[*] Loading Facenet model...")
 model = DeepFace.build_model("Facenet")
 print("[*] Facenet model loaded.")
@@ -50,7 +45,8 @@ def recognize_face_bytes(image_bytes):
             detector_backend="opencv",
             enforce_detection=False
         )[0]["embedding"]
-    except:
+    except Exception as e:
+        print(f"[!] DeepFace error: {e}")
         return "Unknown", 0.0
 
     min_dist = float("inf")
@@ -68,12 +64,7 @@ def recognize_face_bytes(image_bytes):
 
     return identity, similarity
 
-# ---------------- API Endpoints ----------------
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    # Serve index.html from static folder
-    return FileResponse("static/index.html")
-
+# ---------------- API Endpoint ----------------
 @app.post("/verify-attendance")
 async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = None):
     if not file:
@@ -87,3 +78,9 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
         return JSONResponse({"message": f"✅ Attendance marked for {registerNumber} (Similarity: {similarity_percent}%)"})
     else:
         return JSONResponse({"message": f"❌ Face does not match register number (Similarity: {similarity_percent}%)"})
+
+# ---------------- Run Server ----------------
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))  # Use Render port if deployed
+    uvicorn.run("backend.app1:app", host="0.0.0.0", port=port)
