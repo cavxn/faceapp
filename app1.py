@@ -1,4 +1,4 @@
-import pickle, numpy as np, os, logging
+import pickle, numpy as np, os, logging, json
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 app = FastAPI(title="Fast Face Attendance API")
 
-# CORS for frontend
+# CORS for frontend (update with your frontend URL)
 origins = ["https://sorry-no-proxy-frontend.onrender.com"]
 app.add_middleware(
     CORSMiddleware, allow_origins=origins,
@@ -29,7 +29,8 @@ app.add_middleware(
 # ---------------- Face Database ----------------
 DB_FILE = "face_fast_db.pkl"
 try:
-    with open(DB_FILE, "rb") as f: face_db = pickle.load(f)
+    with open(DB_FILE, "rb") as f:
+        face_db = pickle.load(f)
 except FileNotFoundError:
     face_db = {}
 
@@ -38,11 +39,19 @@ model = DeepFace.build_model("Facenet")
 
 # ---------------- Google Sheets ----------------
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-SPREADSHEET_ID = "YOUR_SPREADSHEET_ID"
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES
-)
+
+# Load service account from ENV (Render)
+GOOGLE_PRIVATE_KEY = os.environ.get("GOOGLE_PRIVATE_KEY", "").replace("\\n", "\n")
+GOOGLE_CLIENT_EMAIL = os.environ.get("GOOGLE_SERVICE_ACCOUNT_EMAIL")
+SPREADSHEET_ID = os.environ.get("SHEET_ID")
+
+credentials_dict = {
+    "type": "service_account",
+    "private_key": GOOGLE_PRIVATE_KEY,
+    "client_email": GOOGLE_CLIENT_EMAIL,
+    "token_uri": "https://oauth2.googleapis.com/token"
+}
+credentials = service_account.Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
 sheets_service = build("sheets", "v4", credentials=credentials)
 
 def append_to_sheets(register_number, code):
@@ -62,26 +71,31 @@ def recognize_face_bytes(image_bytes):
             img_path=img_array, model_name="Facenet", model=model,
             detector_backend="opencv", enforce_detection=False
         )[0]["embedding"]
-    except:
+    except Exception as e:
         return "Unknown", 0.0
 
     identity, min_dist = "Unknown", float("inf")
     for reg, db_emb in face_db.items():
         dist = np.linalg.norm(np.array(embedding) - np.array(db_emb))
-        if dist < min_dist: min_dist, identity = dist, reg
+        if dist < min_dist:
+            min_dist, identity = dist, reg
 
     threshold = 10
     similarity = 1 / (1 + min_dist)
-    if min_dist > threshold: identity = "Unknown"
+    if min_dist > threshold:
+        identity = "Unknown"
     return identity, similarity
 
 # ---------------- API ----------------
 @app.get("/")
-async def root(): return {"message": "Face Attendance API running"}
+async def root():
+    return {"message": "✅ Face Attendance API running"}
 
 @app.post("/verify-attendance")
 async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = None):
-    if not file: return JSONResponse({"message": "❌ No image uploaded"}, status_code=400)
+    if not file:
+        return JSONResponse({"message": "❌ No image uploaded"}, status_code=400)
+
     image_bytes = await file.read()
     identity, similarity = recognize_face_bytes(image_bytes)
     similarity_percent = round(similarity * 100, 2)
@@ -102,4 +116,3 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app1:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
