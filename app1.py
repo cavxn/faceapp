@@ -101,4 +101,5 @@ async def verify_attendance(registerNumber: str = Form(...), file: UploadFile = 
 # ---------------- Run Server ----------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+    uvicorn.run("app1:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
