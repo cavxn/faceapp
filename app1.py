@@ -18,7 +18,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 app = FastAPI(title="Fast Face Attendance API")
 
 # CORS for frontend
-origins = ["https://YOUR_FRONTEND_URL"]
+origins = ["https://sorry-no-proxy-frontend.onrender.com"]
 app.add_middleware(
     CORSMiddleware, allow_origins=origins,
     allow_credentials=True,
